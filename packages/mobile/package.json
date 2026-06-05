@@ -1,0 +1,19 @@
+{
+  "name": "@opencode-ai/mobile",
+  "version": "1.16.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "android:dev": "tauri android dev",
+    "android:build": "tauri android build"
+  },
+  "dependencies": {
+    "@opencode-ai/app": "workspace:*",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-shell": "^2.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}
