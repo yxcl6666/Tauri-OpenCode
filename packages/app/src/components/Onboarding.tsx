@@ -95,7 +95,7 @@ export const Onboarding = (props: OnboardingProps) => {
           "-webkit-background-clip": "text",
           "-webkit-text-fill-color": "transparent"
         }}>
-          OpenCode Mobile
+          Tauri OpenCode
         </h2>
 
         {/* 1. Checking / Waking Status */}

@@ -91,6 +91,7 @@ import {
 import { ProjectDragOverlay, SortableProject, type ProjectSidebarContext } from "./layout/sidebar-project"
 import { SidebarContent } from "./layout/sidebar-shell"
 import { runUpdateAndRestart } from "./layout/update"
+import { MobileLayout } from "./layout/MobileLayout"
 
 export default function Layout(props: ParentProps) {
   const serverSDK = useServerSDK()
@@ -2374,7 +2375,25 @@ export default function Layout(props: ParentProps) {
     />
   )
 
+  const isMobileDevice = () => {
+    return typeof window !== "undefined" && (window.innerWidth <= 768 || /Android|iPhone|iPad|iPod|Mobi/i.test(navigator.userAgent));
+  };
+
   return (
+    <Show
+      when={!isMobileDevice()}
+      fallback={
+        <MobileLayout
+          currentProject={currentProject()}
+          currentSessions={currentSessions()}
+          openSettings={openSettings}
+          chooseProject={chooseProject}
+          cycleTheme={() => cycleTheme(1)}
+        >
+          {props.children}
+        </MobileLayout>
+      }
+    >
     <Show
       when={!newDesign()}
       fallback={
@@ -2542,6 +2561,7 @@ export default function Layout(props: ParentProps) {
         </div>
         <ToastRegion v2={newDesign()} />
       </div>
+    </Show>
     </Show>
   )
 }
