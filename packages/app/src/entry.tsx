@@ -10,6 +10,9 @@ import { handleNotificationClick } from "@/utils/notification-click"
 import { authFromToken } from "@/utils/server"
 import pkg from "../package.json"
 import { ServerConnection } from "./context/server"
+import { createSignal, Show } from "solid-js"
+import { Onboarding } from "./components/Onboarding"
+
 
 const DEFAULT_SERVER_URL_KEY = "opencode.settings.dat:defaultServerUrl"
 
@@ -99,7 +102,10 @@ if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
   throw new Error(getRootNotFoundError())
 }
 
+const isTauri = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)
+
 const getCurrentUrl = () => {
+  if (isTauri) return "http://localhost:19130"
   if (location.hostname.includes("opencode.ai")) return "http://localhost:4096"
   if (import.meta.env.DEV)
     return `http://${import.meta.env.VITE_OPENCODE_SERVER_HOST ?? "localhost"}:${import.meta.env.VITE_OPENCODE_SERVER_PORT ?? "4096"}`
@@ -111,6 +117,7 @@ const getDefaultUrl = () => {
   if (lsDefault) return lsDefault
   return getCurrentUrl()
 }
+
 
 const clearAuthToken = () => {
   const params = new URLSearchParams(location.search)
@@ -156,27 +163,54 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 if (root instanceof HTMLElement) {
   const auth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
   clearAuthToken()
-  const server: ServerConnection.Http = {
-    type: "http",
-    authToken: !!auth,
-    http: {
-      url: getCurrentUrl(),
-      ...auth,
-    },
-  }
-  render(
-    () => (
-      <PlatformProvider value={platform}>
-        <AppBaseProviders>
-          <AppInterface
-            defaultServer={ServerConnection.Key.make(getDefaultUrl())}
-            canonicalLocalServer={ServerConnection.key(server)}
-            servers={[server]}
-            disableHealthCheck
+  
+  const App = () => {
+    const [connected, setConnected] = createSignal(!isTauri)
+    const [activeUrl, setActiveUrl] = createSignal(getDefaultUrl())
+
+
+    return (
+      <Show
+        when={connected()}
+        fallback={
+          <Onboarding
+            serverUrl={activeUrl()}
+            onConnected={() => setConnected(true)}
+            onSkip={(url) => {
+              setActiveUrl(url)
+              setConnected(true)
+            }}
           />
-        </AppBaseProviders>
-      </PlatformProvider>
-    ),
-    root,
-  )
+        }
+      >
+        <PlatformProvider value={platform}>
+          <AppBaseProviders>
+            <AppInterface
+              defaultServer={ServerConnection.Key.make(activeUrl())}
+              canonicalLocalServer={ServerConnection.key({
+                type: "http",
+                authToken: !!auth,
+                http: {
+                  url: activeUrl(),
+                  ...auth,
+                },
+              })}
+              servers={[{
+                type: "http",
+                authToken: !!auth,
+                http: {
+                  url: activeUrl(),
+                  ...auth,
+                },
+              }]}
+              disableHealthCheck
+            />
+          </AppBaseProviders>
+        </PlatformProvider>
+      </Show>
+    )
+  }
+
+  render(() => <App />, root)
 }
+
