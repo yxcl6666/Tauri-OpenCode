@@ -66,6 +66,27 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
+# 3.5. 自愈并配置 Bun 运行环境
+BUN_PATH="$HOME/.bun/bin/bun"
+if ! command -v bun &> /dev/null && [ ! -f "$BUN_PATH" ]; then
+    echo "⚡ 检测到缺失核心运行环境 Bun，正在为您自动下载并安装 Bun (Android aarch64 兼容版)..."
+    curl -fsSL https://bun.sh/install | bash
+    if [ $? -ne 0 ] || [ ! -f "$BUN_PATH" ]; then
+        echo "⚠️ 官方安装脚本失败，正在尝试通过 npm 全局安装备用 Bun 包..."
+        npm install -g bun
+    fi
+fi
+
+# 确保 bun 路径在 PATH 中
+if [ -f "$BUN_PATH" ]; then
+    export PATH="$HOME/.bun/bin:$PATH"
+fi
+
+if ! command -v bun &> /dev/null; then
+    echo "❌ 错误: Bun 自动安装失败，服务无法在 Node 下直接启动。请手动运行 'curl -fsSL https://bun.sh/install | bash' 安装 Bun。"
+    exit 1
+fi
+
 # 4. 寻找或一键下载代码库目录
 PROJECT_DIR=""
 if [ -f "$HOME/projects/opencode-dev/packages/opencode/src/index.ts" ]; then
@@ -119,15 +140,18 @@ fi
 cd "$PROJECT_DIR"
 echo "✅ 已成功定位项目目录: $PROJECT_DIR"
 
-# 5. 自愈并更新 node 依赖
-if ! command -v pnpm &> /dev/null; then
-    echo "正在自动全局安装 pnpm 依赖管理包..."
-    npm install -g pnpm
+# 自动同步最新的代码仓 (如果是 git 仓库)
+if [ -d ".git" ]; then
+    echo "正在自动从 GitHub 同步最新修复代码..."
+    git fetch --all &>/dev/null
+    git reset --hard origin/main &>/dev/null
+    git pull origin main &>/dev/null
 fi
 
+# 5. 自愈并安装依赖 (使用 Bun 极速安装)
 if [ ! -d "node_modules" ] || [ ! -d "packages/opencode/node_modules" ] || [ ! -d "packages/core/node_modules" ]; then
-    echo "检测到 node_modules 缺失或不完整，正在为您优化并安装核心服务依赖..."
-    pnpm install --filter opencode... --ignore-scripts
+    echo "检测到 node_modules 缺失或不完整，正在使用 Bun 为您快速安装项目依赖..."
+    bun install
 fi
 
 # 6. 自愈端口占用 (防止多次启动导致端口冲突)
@@ -156,20 +180,7 @@ echo "=================================================="
     fi
 ) &
 
-# 关键修复：进入 opencode 子包目录运行，以使 tsx 能够正确读取并解析其 tsconfig.json 中的路径别名（如 @/*）
+# 进入 opencode 包目录并使用 Bun 启动服务
+# Bun 原生支持 tsconfig.json 别名，且原生支持 bun:sqlite 等运行时依赖协议
 cd "$PROJECT_DIR/packages/opencode"
-
-# 动态生成不依赖外部 extends 的独立 tsconfig 以确保 tsx 在 Termux 下能无痛解析路径
-cat << 'EOF' > tsconfig.termux.json
-{
-  "compilerOptions": {
-    "paths": {
-      "@/*": ["./src/*"],
-      "@tui/*": ["./src/cli/cmd/tui/*"],
-      "@test/*": ["./test/*"]
-    }
-  }
-}
-EOF
-
-npx -y tsx --tsconfig tsconfig.termux.json --conditions=browser src/index.ts serve --port $PORT --hostname 0.0.0.0
+bun run --conditions=browser src/index.ts serve --port $PORT --hostname 0.0.0.0
