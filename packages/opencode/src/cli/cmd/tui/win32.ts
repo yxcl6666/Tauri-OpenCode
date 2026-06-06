@@ -1,4 +1,6 @@
-import { dlopen, ptr } from "bun:ffi"
+const { dlopen, ptr } = (typeof Bun !== "undefined" && process.platform === "win32")
+  ? await import("bun:ffi")
+  : { dlopen: (() => {}) as any, ptr: (() => {}) as any };
 import type { ReadStream } from "node:tty"
 
 const STD_INPUT_HANDLE = -10

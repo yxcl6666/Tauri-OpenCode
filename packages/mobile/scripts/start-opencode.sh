@@ -66,26 +66,7 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
-# 3.5. 自愈并配置 Bun 运行环境
-BUN_PATH="$HOME/.bun/bin/bun"
-if ! command -v bun &> /dev/null && [ ! -f "$BUN_PATH" ]; then
-    echo "⚡ 检测到缺失核心运行环境 Bun，正在为您自动下载并安装 Bun (Android aarch64 兼容版)..."
-    curl -fsSL https://bun.sh/install | bash
-    if [ $? -ne 0 ] || [ ! -f "$BUN_PATH" ]; then
-        echo "⚠️ 官方安装脚本失败，正在尝试通过 npm 全局安装备用 Bun 包..."
-        npm install -g bun
-    fi
-fi
 
-# 确保 bun 路径在 PATH 中
-if [ -f "$BUN_PATH" ]; then
-    export PATH="$HOME/.bun/bin:$PATH"
-fi
-
-if ! command -v bun &> /dev/null; then
-    echo "❌ 错误: Bun 自动安装失败，服务无法在 Node 下直接启动。请手动运行 'curl -fsSL https://bun.sh/install | bash' 安装 Bun。"
-    exit 1
-fi
 
 # 4. 寻找或一键下载代码库目录
 PROJECT_DIR=""
@@ -148,16 +129,21 @@ if [ -d ".git" ]; then
     git pull origin main &>/dev/null
 fi
 
-# 5. 自愈并安装依赖 (使用 Bun 极速安装)
-# 检测到旧的 pnpm 残余 node_modules 时自动清理，防止软链接冲突
-if [ -d "node_modules/.pnpm" ]; then
-    echo "⚡ 检测到旧的 pnpm 残留依赖，正在为您自动清理以防止软链接冲突..."
+# 5. 自愈并更新 node 依赖
+if ! command -v pnpm &> /dev/null; then
+    echo "正在自动全局安装 pnpm 依赖管理包..."
+    npm install -g pnpm
+fi
+
+# 如果发现 node_modules 存在但不是 pnpm 目录 (代表是之前 Bun 试验安装的)，自动清空以防止软链接冲突
+if [ -d "node_modules" ] && [ ! -d "node_modules/.pnpm" ]; then
+    echo "⚡ 检测到非 pnpm 生成的依赖目录，正在为您自动清理以防止软链接冲突..."
     rm -rf node_modules packages/*/node_modules
 fi
 
 if [ ! -d "node_modules" ] || [ ! -d "packages/opencode/node_modules" ] || [ ! -d "packages/core/node_modules" ]; then
-    echo "检测到 node_modules 缺失或不完整，正在使用 Bun 为您快速安装项目依赖..."
-    bun install
+    echo "检测到 node_modules 缺失或不完整，正在为您优化并安装核心服务依赖..."
+    pnpm install --filter opencode... --ignore-scripts
 fi
 
 # 6. 自愈端口占用 (防止多次启动导致端口冲突)
@@ -186,7 +172,21 @@ echo "=================================================="
     fi
 ) &
 
-# 进入 opencode 包目录并使用 Bun 启动服务
-# Bun 原生支持 tsconfig.json 别名，且原生支持 bun:sqlite 等运行时依赖协议
+# 关键修复：进入 opencode 子包目录运行，以使 tsx 能够正确读取并解析其 tsconfig.json 中的路径别名（如 @/*）
 cd "$PROJECT_DIR/packages/opencode"
-bun run --conditions=browser src/index.ts serve --port $PORT --hostname 0.0.0.0
+
+# 动态生成不依赖外部 extends 的独立 tsconfig 以确保 tsx 在 Termux 下能无痛解析路径
+cat << 'EOF' > tsconfig.termux.json
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"],
+      "@tui/*": ["./src/cli/cmd/tui/*"],
+      "@test/*": ["./test/*"]
+    }
+  }
+}
+EOF
+
+# 使用 node 和 tsx 启动服务。指定 --conditions=node 引导模块解析走 node 分支，完美解决 bun: 协议解析报错
+npx -y tsx --tsconfig tsconfig.termux.json --conditions=node src/index.ts serve --port $PORT --hostname 0.0.0.0

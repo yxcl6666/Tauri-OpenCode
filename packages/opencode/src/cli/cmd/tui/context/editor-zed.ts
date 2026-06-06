@@ -1,4 +1,6 @@
-import { Database } from "bun:sqlite"
+const { Database } = (typeof Bun !== "undefined")
+  ? await import("bun:sqlite")
+  : { Database: class {} as any };
 import os from "node:os"
 import path from "node:path"
 import { Option, Schema } from "effect"
@@ -38,6 +40,7 @@ export type ZedSelectionResult =
   | { type: "unavailable" }
 
 export async function resolveZedSelection(dbPath: string, cwd = process.cwd()): Promise<ZedSelectionResult> {
+  if (typeof Bun === "undefined") return { type: "unavailable" }
   const active = queryZedActiveEditor(dbPath, cwd)
   if (active.type !== "row") return active
 
