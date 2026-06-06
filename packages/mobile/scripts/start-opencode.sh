@@ -119,7 +119,7 @@ fi
 
 if [ ! -d "node_modules" ]; then
     echo "检测到 node_modules 缺失，正在为您优化并精简安装核心服务依赖..."
-    pnpm install --filter opencode
+    pnpm install --filter opencode --ignore-scripts
 fi
 
 # 6. 自愈端口占用 (防止多次启动导致端口冲突)
@@ -152,4 +152,6 @@ echo "=================================================="
     fi
 ) &
 
-npx -y tsx --conditions=browser packages/opencode/src/index.ts serve --port $PORT --hostname 0.0.0.0
+# 关键修复：进入 opencode 子包目录运行，以使 tsx 能够正确读取并解析其 tsconfig.json 中的路径别名（如 @/*）
+cd "$PROJECT_DIR/packages/opencode"
+npx -y tsx --conditions=browser src/index.ts serve --port $PORT --hostname 0.0.0.0
