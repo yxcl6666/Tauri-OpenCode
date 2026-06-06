@@ -152,4 +152,4 @@ echo "=================================================="
     fi
 ) &
 
-npx tsx --conditions=browser packages/opencode/src/index.ts serve --port $PORT
+npx -y tsx --conditions=browser packages/opencode/src/index.ts serve --port $PORT --hostname 0.0.0.0
