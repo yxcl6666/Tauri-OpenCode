@@ -79,9 +79,16 @@ if command -v fuser &> /dev/null; then
     fi
 fi
 
-# 7. 异步延时拉起前端 APP (给服务跑起来留出时间)
+# 7. 异步等待 19130 端口成功监听后再拉起前端 APP
 (
-    sleep 3.5
+    echo "⚡ 后台正在等待端口 19130 被监听..."
+    for i in {1..40}; do
+        if (echo > /dev/tcp/127.0.0.1/19130) &>/dev/null; then
+            echo "🎉 检测到后端端口 19130 已经成功启动监听！"
+            break
+        fi
+        sleep 0.5
+    done
     echo "⚡ 正在尝试反向强唤醒手机前端 APP..."
     if ! am start --user 0 -n ai.opencode.mobile.debug/ai.opencode.mobile.MainActivity &>/dev/null; then
         am start --user 0 -n ai.opencode.mobile/ai.opencode.mobile.MainActivity &>/dev/null
