@@ -15,6 +15,14 @@ fi
 
 # 2. 检测网络与软件源更新 (防卡顿)
 echo "正在检测软件源可用性..."
+# 针对 NO_PUBKEY 问题进行自动公钥修复
+if apt update 2>&1 | grep -q "NO_PUBKEY"; then
+    echo "⚠️ 检测到 Termux 软件源公钥缺失，正在尝试自动下载并配置信任密钥..."
+    mkdir -p $PREFIX/etc/apt/trusted.gpg.d/
+    curl -fsSL https://github.com/termux/termux-keyring/raw/master/keyring.gpg -o $PREFIX/etc/apt/trusted.gpg.d/termux-keyring.gpg 2>/dev/null
+    apt update -y &> /dev/null
+fi
+
 # 测试更新软件列表，如果失败自动尝试换源
 if ! apt update -y &> /dev/null; then
     echo "⚠️ 默认软件源更新失败，正在自动为您优化并切换为清华镜像源以提升下载速度..."
@@ -117,9 +125,9 @@ if ! command -v pnpm &> /dev/null; then
     npm install -g pnpm
 fi
 
-if [ ! -d "node_modules" ]; then
-    echo "检测到 node_modules 缺失，正在为您优化并精简安装核心服务依赖..."
-    pnpm install --filter opencode --ignore-scripts
+if [ ! -d "node_modules" ] || [ ! -d "packages/opencode/node_modules" ] || [ ! -d "packages/core/node_modules" ]; then
+    echo "检测到 node_modules 缺失或不完整，正在为您优化并安装核心服务依赖..."
+    pnpm install --filter opencode... --ignore-scripts
 fi
 
 # 6. 自愈端口占用 (防止多次启动导致端口冲突)
