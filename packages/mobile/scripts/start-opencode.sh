@@ -1,8 +1,10 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-# Termux 启动 & 环境自愈脚本
+# ==================================================
+# 🚀 Tauri OpenCode PRoot Debian 工业级自愈启动脚本
+# ==================================================
 echo "=================================================="
-echo "🚀 正在检查并准备 Tauri OpenCode 手机服务运行环境..."
+echo "🚀 正在检查并准备 Tauri OpenCode 手机服务运行环境 (PRoot 容器化)..."
 echo "=================================================="
 
 # 1. 自动开启外部应用控制权限，并重载设置
@@ -20,7 +22,7 @@ if apt update 2>&1 | grep -q "NO_PUBKEY"; then
     echo "⚠️ 检测到 Termux 软件源公钥缺失，正在尝试自动下载并配置信任密钥..."
     mkdir -p $PREFIX/etc/apt/trusted.gpg.d/
     curl -fsSL https://github.com/termux/termux-keyring/raw/master/keyring.gpg -o $PREFIX/etc/apt/trusted.gpg.d/termux-keyring.gpg 2>/dev/null
-    apt update -y &> /dev/null
+    apt update -y &>/dev/null
 fi
 
 # 测试更新软件列表，如果失败自动尝试换源
@@ -30,121 +32,41 @@ if ! apt update -y &> /dev/null; then
     apt update -y
 fi
 
-# 3. 自愈安装所需的基础系统依赖
-DEPENDENCIES=("node" "git" "unzip" "psmisc")
-PKGS_TO_INSTALL=()
+# 3. 安装 PRoot 及其管理工具
+echo "正在为您安装 Linux 容器管理服务 (proot-distro)..."
+pkg install proot-distro git unzip psmisc -y
 
-for dep in "${DEPENDENCIES[@]}"; do
-    if [ "$dep" = "node" ]; then
-        if ! command -v node &> /dev/null; then
-            PKGS_TO_INSTALL+=("nodejs-lts")
-        fi
-    elif [ "$dep" = "psmisc" ]; then
-        if ! command -v fuser &> /dev/null; then
-            PKGS_TO_INSTALL+=("psmisc")
-        fi
-    else
-        if ! command -v $dep &> /dev/null; then
-            PKGS_TO_INSTALL+=("$dep")
-        fi
-    fi
-done
-
-if [ ${#PKGS_TO_INSTALL[@]} -ne 0 ]; then
-    echo "检测到缺失以下环境依赖: ${PKGS_TO_INSTALL[*]}"
-    echo "正在为您自动安装，这可能需要一点时间，请保持网络连接..."
-    pkg install -y "${PKGS_TO_INSTALL[@]}"
+# 4. 确保 debian 容器已经成功安装
+if ! proot-distro list | grep -q "installed.*debian"; then
+    echo "⚡ 正在为您下载并安装 Debian 轻量级标准 Linux 容器..."
+    echo "👉 首次下载大概需要 1-2 分钟，请保持网络连接..."
+    proot-distro install debian
     if [ $? -ne 0 ]; then
-        echo "⚠️ pkg 安装遇到障碍，正在尝试通过 apt 进行备用安装..."
-        apt install -y "${PKGS_TO_INSTALL[@]}"
+        echo "❌ 错误: Debian 容器下载安装失败，请检查网络。"
+        exit 1
     fi
 fi
 
-# 验证安装是否成功
-if ! command -v node &> /dev/null; then
-    echo "❌ 错误: Node.js 自动安装失败，请尝试在手机上重新打开 Termux 并手动输入 'pkg install nodejs-lts' 进行安装。"
-    exit 1
-fi
-
-
-
-# 4. 寻找或一键下载代码库目录
+# 5. 寻找或一键下载代码库目录 (在 Termux 宿主机家目录下)
 PROJECT_DIR=""
-if [ -f "$HOME/projects/opencode-dev/packages/opencode/src/index.ts" ]; then
+if [ -d "$HOME/projects/opencode-dev" ]; then
     PROJECT_DIR="$HOME/projects/opencode-dev"
-elif [ -f "$HOME/opencode-dev/packages/opencode/src/index.ts" ]; then
+elif [ -d "$HOME/opencode-dev" ]; then
     PROJECT_DIR="$HOME/opencode-dev"
 fi
 
 if [ -z "$PROJECT_DIR" ]; then
-    echo "--------------------------------------------------"
-    echo "❌ 未在 Termux 中检测到完整可用的 opencode-dev 项目目录。"
-    echo "--------------------------------------------------"
-    echo "💡 [代码库一键下载部署服务]："
-    echo "  1. 从 GitHub 官方云端克隆 (推荐，跨网络任何地点均可使用)"
-    echo "  2. 从电脑局域网同步下载 (需要电脑与手机在同一 Wi-Fi)"
-    echo "--------------------------------------------------"
-    read -p "👉 请选择部署方式 (输入 1 或 2，默认为 1): " choice
-    if [ -z "$choice" ]; then
-        choice="1"
-    fi
-
-    if [ "$choice" = "1" ]; then
-        echo "正在从 GitHub 云端拉取最新的纯源码包 (https://github.com/yxcl6666/Tauri-OpenCode.git)..."
-        # 清除残留以防 git clone 失败
-        rm -rf "$HOME/opencode-dev"
-        git clone "https://github.com/yxcl6666/Tauri-OpenCode.git" "$HOME/opencode-dev"
-        if [ $? -ne 0 ]; then
-            echo "❌ 云端克隆失败，请检查手机网络连接。"
-            exit 1
-        fi
-        PROJECT_DIR="$HOME/opencode-dev"
-    else
-        read -p "👉 请在此处输入电脑上显示的局域网 IP 地址 (例如: 192.168.1.5): " pc_ip
-        if [ -z "$pc_ip" ]; then
-            echo "未输入 IP 地址，自愈程序退出。"
-            exit 1
-        fi
-        echo "正在从电脑下载局域网瘦身压缩包 (http://$pc_ip:8000/opencode-dev.zip)..."
-        curl -L -o ~/opencode-dev.zip "http://$pc_ip:8000/opencode-dev.zip"
-        if [ $? -ne 0 ]; then
-            echo "❌ 局域网下载失败！请确保手机和电脑在同一 Wi-Fi 下且电脑端分享已开启。"
-            exit 1
-        fi
-        echo "🎉 下载成功！正在解压到 ~/opencode-dev 路径..."
-        unzip -o ~/opencode-dev.zip -d ~/
-        rm ~/opencode-dev.zip
-        PROJECT_DIR="$HOME/opencode-dev"
-    fi
+    echo "正在从 GitHub 云端拉取最新的源码 (https://github.com/yxcl6666/Tauri-OpenCode.git)..."
+    git clone "https://github.com/yxcl6666/Tauri-OpenCode.git" "$HOME/opencode-dev"
+    PROJECT_DIR="$HOME/opencode-dev"
 fi
 
+# 自动同步最新的代码仓
 cd "$PROJECT_DIR"
-echo "✅ 已成功定位项目目录: $PROJECT_DIR"
-
-# 自动同步最新的代码仓 (如果是 git 仓库)
-if [ -d ".git" ]; then
-    echo "正在自动从 GitHub 同步最新修复代码..."
-    git fetch --all &>/dev/null
-    git reset --hard origin/main &>/dev/null
-    git pull origin main &>/dev/null
-fi
-
-# 5. 自愈并更新 node 依赖
-if ! command -v pnpm &> /dev/null; then
-    echo "正在自动全局安装 pnpm 依赖管理包..."
-    npm install -g pnpm
-fi
-
-# 如果发现 node_modules 存在但不是 pnpm 目录 (代表是之前 Bun 试验安装的)，自动清空以防止软链接冲突
-if [ -d "node_modules" ] && [ ! -d "node_modules/.pnpm" ]; then
-    echo "⚡ 检测到非 pnpm 生成的依赖目录，正在为您自动清理以防止软链接冲突..."
-    rm -rf node_modules packages/*/node_modules
-fi
-
-if [ ! -d "node_modules" ] || [ ! -d "packages/opencode/node_modules" ] || [ ! -d "packages/core/node_modules" ]; then
-    echo "检测到 node_modules 缺失或不完整，正在为您优化并安装核心服务依赖..."
-    pnpm install --filter opencode... --ignore-scripts
-fi
+echo "正在从 GitHub 同步最新修复代码..."
+git fetch --all &>/dev/null
+git reset --hard origin/main &>/dev/null
+git pull origin main &>/dev/null
 
 # 6. 自愈端口占用 (防止多次启动导致端口冲突)
 PORT=19130
@@ -157,36 +79,67 @@ if command -v fuser &> /dev/null; then
     fi
 fi
 
-# 7. 启动服务
-echo "--------------------------------------------------"
-echo "🚀 运行环境完全自愈成功，正在为您启动 OpenCode 后台服务..."
-echo "👉 后台端口: $PORT"
-echo "=================================================="
-
-# 异步延时拉起前端 APP (给服务跑起来留出时间)
+# 7. 异步延时拉起前端 APP (给服务跑起来留出时间)
 (
-    sleep 2.5
+    sleep 3.5
     echo "⚡ 正在尝试反向强唤醒手机前端 APP..."
     if ! am start --user 0 -n ai.opencode.mobile.debug/ai.opencode.mobile.MainActivity &>/dev/null; then
         am start --user 0 -n ai.opencode.mobile/ai.opencode.mobile.MainActivity &>/dev/null
     fi
 ) &
 
-# 关键修复：进入 opencode 子包目录运行，以使 tsx 能够正确读取并解析其 tsconfig.json 中的路径别名（如 @/*）
-cd "$PROJECT_DIR/packages/opencode"
+# 8. 构造并生成子系统内运行的自愈与启动脚本
+# 我们将 Termux 的 $HOME 挂载到 Debian 内部的 /root/home 下
+cat << 'EOF' > ~/.start-inside-debian.sh
+#!/bin/bash
+export PATH="/root/.bun/bin:$PATH"
 
-# 动态生成不依赖外部 extends 的独立 tsconfig 以确保 tsx 在 Termux 下能无痛解析路径
-cat << 'EOF' > tsconfig.termux.json
-{
-  "compilerOptions": {
-    "paths": {
-      "@/*": ["./src/*"],
-      "@tui/*": ["./src/cli/cmd/tui/*"],
-      "@test/*": ["./test/*"]
-    }
-  }
-}
+echo "=================================================="
+echo "🐧 正在初始化 Debian 子系统依赖环境..."
+echo "=================================================="
+
+# 容器内软件源自检和更新
+apt-get update &>/dev/null
+apt-get install -y curl unzip git psmisc &>/dev/null
+
+# 容器内安装官方 Bun 运行时 (在标准 Linux 容器下可完美运行，无 PIE 报错)
+if ! command -v bun &> /dev/null; then
+    echo "⚡ 正在容器内下载并安装 Bun 运行环境..."
+    curl -fsSL https://bun.sh/install | bash
+fi
+
+# 确保 bun 命令有效
+export PATH="/root/.bun/bin:$PATH"
+
+if ! command -v bun &> /dev/null; then
+    echo "❌ 错误: 容器内 Bun 安装失败。"
+    exit 1
+fi
+
+# 进入挂载的项目路径并安装依赖
+cd /root/home/opencode-dev
+
+# 检测到 pnpm 脏依赖时自动清理 (防止软链接冲突)
+if [ -d "node_modules/.pnpm" ]; then
+    echo "⚡ 清理旧的 pnpm 残留依赖目录..."
+    rm -rf node_modules packages/*/node_modules
+fi
+
+if [ ! -d "node_modules" ] || [ ! -d "packages/opencode/node_modules" ] || [ ! -d "packages/core/node_modules" ]; then
+    echo "正在使用 Bun 快速安装/补齐项目依赖 (Debian aarch64 环境)..."
+    bun install
+fi
+
+# 启动服务
+cd packages/opencode
+echo "--------------------------------------------------"
+echo "🚀 OpenCode 后台服务已成功在 Linux 容器中启动！"
+echo "👉 容器后台正在监听端口: 19130 (网络与 Termux 宿主机共享)"
+echo "=================================================="
+bun run --conditions=browser src/index.ts serve --port 19130 --hostname 0.0.0.0
 EOF
 
-# 使用 node 和 tsx 启动服务。指定 --conditions=node 引导模块解析走 node 分支，完美解决 bun: 协议解析报错
-npx -y tsx --tsconfig tsconfig.termux.json --conditions=node src/index.ts serve --port $PORT --hostname 0.0.0.0
+chmod +x ~/.start-inside-debian.sh
+
+# 9. 启动 Debian 容器并挂载 Termux 家目录执行启动逻辑
+proot-distro login debian --shared-tmp --bind $HOME:/root/home -- bash /root/home/.start-inside-debian.sh
