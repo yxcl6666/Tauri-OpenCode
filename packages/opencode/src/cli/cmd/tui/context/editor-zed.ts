@@ -1,5 +1,6 @@
+const bunSqliteProtocol = "bun:" + "sqlite";
 const { Database } = (typeof Bun !== "undefined")
-  ? await import("bun:sqlite")
+  ? await import(bunSqliteProtocol)
   : { Database: class {} as any };
 import os from "node:os"
 import path from "node:path"

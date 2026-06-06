@@ -1,5 +1,6 @@
+const bunFfiProtocol = "bun:" + "ffi";
 const { dlopen, ptr } = (typeof Bun !== "undefined" && process.platform === "win32")
-  ? await import("bun:ffi")
+  ? await import(bunFfiProtocol)
   : { dlopen: (() => {}) as any, ptr: (() => {}) as any };
 import type { ReadStream } from "node:tty"
 
