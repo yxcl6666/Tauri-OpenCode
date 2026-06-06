@@ -149,6 +149,12 @@ if [ -d ".git" ]; then
 fi
 
 # 5. 自愈并安装依赖 (使用 Bun 极速安装)
+# 检测到旧的 pnpm 残余 node_modules 时自动清理，防止软链接冲突
+if [ -d "node_modules/.pnpm" ]; then
+    echo "⚡ 检测到旧的 pnpm 残留依赖，正在为您自动清理以防止软链接冲突..."
+    rm -rf node_modules packages/*/node_modules
+fi
+
 if [ ! -d "node_modules" ] || [ ! -d "packages/opencode/node_modules" ] || [ ! -d "packages/core/node_modules" ]; then
     echo "检测到 node_modules 缺失或不完整，正在使用 Bun 为您快速安装项目依赖..."
     bun install
