@@ -23,7 +23,7 @@ if ! apt update -y &> /dev/null; then
 fi
 
 # 3. 自愈安装所需的基础系统依赖
-DEPENDENCIES=("node" "git" "unzip" "lsof")
+DEPENDENCIES=("node" "git" "unzip" "psmisc")
 PKGS_TO_INSTALL=()
 
 for dep in "${DEPENDENCIES[@]}"; do
@@ -31,9 +31,9 @@ for dep in "${DEPENDENCIES[@]}"; do
         if ! command -v node &> /dev/null; then
             PKGS_TO_INSTALL+=("nodejs-lts")
         fi
-    elif [ "$dep" = "lsof" ]; then
-        if ! command -v lsof &> /dev/null; then
-            PKGS_TO_INSTALL+=("lsof")
+    elif [ "$dep" = "psmisc" ]; then
+        if ! command -v fuser &> /dev/null; then
+            PKGS_TO_INSTALL+=("psmisc")
         fi
     else
         if ! command -v $dep &> /dev/null; then
@@ -124,17 +124,13 @@ fi
 
 # 6. 自愈端口占用 (防止多次启动导致端口冲突)
 PORT=19130
-OCCUPIED_PID=""
-if command -v lsof &> /dev/null; then
-    OCCUPIED_PID=$(lsof -t -i :$PORT)
-elif command -v fuser &> /dev/null; then
+if command -v fuser &> /dev/null; then
     OCCUPIED_PID=$(fuser $PORT/tcp 2>/dev/null | awk '{print $NF}')
-fi
-
-if [ ! -z "$OCCUPIED_PID" ]; then
-    echo "检测到端口 $PORT 已被进程 $OCCUPIED_PID 占用，正在释放端口..."
-    kill -9 $OCCUPIED_PID &>/dev/null
-    sleep 1
+    if [ ! -z "$OCCUPIED_PID" ]; then
+        echo "检测到端口 $PORT 已被进程占用，正在释放端口..."
+        fuser -k $PORT/tcp &>/dev/null
+        sleep 1
+    fi
 fi
 
 # 7. 启动服务
@@ -154,4 +150,18 @@ echo "=================================================="
 
 # 关键修复：进入 opencode 子包目录运行，以使 tsx 能够正确读取并解析其 tsconfig.json 中的路径别名（如 @/*）
 cd "$PROJECT_DIR/packages/opencode"
-npx -y tsx --conditions=browser src/index.ts serve --port $PORT --hostname 0.0.0.0
+
+# 动态生成不依赖外部 extends 的独立 tsconfig 以确保 tsx 在 Termux 下能无痛解析路径
+cat << 'EOF' > tsconfig.termux.json
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"],
+      "@tui/*": ["./src/cli/cmd/tui/*"],
+      "@test/*": ["./test/*"]
+    }
+  }
+}
+EOF
+
+npx -y tsx --tsconfig tsconfig.termux.json --conditions=browser src/index.ts serve --port $PORT --hostname 0.0.0.0
