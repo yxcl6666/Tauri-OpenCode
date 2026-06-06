@@ -118,15 +118,15 @@ if ! command -v pnpm &> /dev/null; then
 fi
 
 if [ ! -d "node_modules" ]; then
-    echo "检测到 node_modules 缺失，正在通过 pnpm 自动安装依赖包..."
-    pnpm install
+    echo "检测到 node_modules 缺失，正在为您优化并精简安装核心服务依赖..."
+    pnpm install --filter opencode
 fi
 
 # 6. 自愈端口占用 (防止多次启动导致端口冲突)
 PORT=19130
 OCCUPIED_PID=""
 if command -v lsof &> /dev/null; then
-    OCCUPIED_PID=$(lsof -t -i:$PORT)
+    OCCUPIED_PID=$(lsof -t -i :$PORT)
 elif command -v fuser &> /dev/null; then
     OCCUPIED_PID=$(fuser $PORT/tcp 2>/dev/null | awk '{print $NF}')
 fi
