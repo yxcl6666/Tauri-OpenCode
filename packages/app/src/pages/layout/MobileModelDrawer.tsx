@@ -9,12 +9,18 @@ interface ModelDrawerProps {
 }
 
 export function MobileModelDrawer(props: ModelDrawerProps) {
-  const local = useLocal();
+  let local: any;
+  try {
+    local = useLocal();
+  } catch (e) {
+    // Swallowed safely
+  }
   const language = useLanguage();
-  const model = () => local.model;
+  const model = () => local?.model;
 
   // 过滤出可显示的候选模型列表
   const visibleModels = createMemo(() => {
+    if (!local) return [];
     return model()
       .list()
       .filter((m) => model().visible({ modelID: m.id, providerID: m.provider.id }));
@@ -30,7 +36,7 @@ export function MobileModelDrawer(props: ModelDrawerProps) {
     return visibleModels().slice(3);
   });
 
-  const currentModel = () => model().current();
+  const currentModel = () => model()?.current();
 
   const isSelected = (m: { id: string; provider: { id: string } }) => {
     const curr = currentModel();
@@ -75,7 +81,7 @@ export function MobileModelDrawer(props: ModelDrawerProps) {
                     "border-border-weak hover:bg-background-base": !isSelected(m),
                   }}
                   onClick={() => {
-                    model().set({ modelID: m.id, providerID: m.provider.id }, { recent: true });
+                    model()?.set({ modelID: m.id, providerID: m.provider.id }, { recent: true });
                     props.onClose();
                   }}
                 >
@@ -105,7 +111,7 @@ export function MobileModelDrawer(props: ModelDrawerProps) {
                       "bg-primary/5 text-primary font-semibold border-primary/20": isSelected(m),
                     }}
                     onClick={() => {
-                      model().set({ modelID: m.id, providerID: m.provider.id }, { recent: true });
+                      model()?.set({ modelID: m.id, providerID: m.provider.id }, { recent: true });
                       props.onClose();
                     }}
                   >

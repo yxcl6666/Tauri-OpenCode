@@ -20,10 +20,16 @@ export function MobileLayout(props: MobileLayoutProps) {
   const theme = useTheme();
   const language = useLanguage();
   const settings = useSettings();
-  const local = useLocal();
+  let local: any;
+  try {
+    local = useLocal();
+  } catch (e) {
+    // Local context is not available when outside workspace directory routes
+  }
 
   const [activeTab, setActiveTab] = createSignal<"chat" | "project" | "settings">("chat");
   const [isTablet, setIsTablet] = createSignal(false);
+  const [isDisconnected, setIsDisconnected] = createSignal(false);
 
   // Popover 显隐与坐标锚定状态
   const [isLangOpen, setIsLangOpen] = createSignal(false);
@@ -43,17 +49,34 @@ export function MobileLayout(props: MobileLayoutProps) {
     setIsTablet(window.innerWidth > 768);
   };
 
+  // 轻量级心跳检测 — 每 8 秒 ping 后端
+  let heartbeatInterval: ReturnType<typeof setInterval> | undefined;
+  const startHeartbeat = () => {
+    const pingBackend = async () => {
+      try {
+        await fetch(window.location.origin, { method: "GET", mode: "no-cors", credentials: "omit" });
+        if (isDisconnected()) setIsDisconnected(false);
+      } catch {
+        setIsDisconnected(true);
+      }
+    };
+    heartbeatInterval = setInterval(pingBackend, 8000);
+  };
+
   onMount(() => {
     window.addEventListener("resize", handleResize);
     handleResize();
+    startHeartbeat();
   });
 
   onCleanup(() => {
     window.removeEventListener("resize", handleResize);
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
   });
 
   // 获取当前所选的模型名称
   const currentModelName = createMemo(() => {
+    if (!local) return "Tauri OpenCode";
     const curr = local.model.current();
     if (!curr) return "Gemini 1.5 Pro";
     const found = local.model.list().find(m => m.id === curr.modelID && m.provider.id === curr.providerID);
@@ -67,6 +90,45 @@ export function MobileLayout(props: MobileLayoutProps) {
 
   return (
     <div class="w-full h-full flex flex-col bg-background-base text-text-strong select-none no-scrollbar overflow-hidden">
+      {/* 精致断线感知小胶囊 (V8空气感悬浮设计) */}
+      <Show when={isDisconnected()}>
+        <div
+          style={{
+            position: "absolute",
+            top: "52px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(253, 242, 242, 0.95)",
+            border: "1px solid rgba(229, 72, 77, 0.18)",
+            color: "#df3434",
+            padding: "6px 14px",
+            "border-radius": "9999px",
+            display: "flex",
+            "align-items": "center",
+            gap: "6px",
+            "font-size": "10.5px",
+            "font-weight": "600",
+            "box-shadow": "0 4px 16px rgba(229, 72, 77, 0.08)",
+            "z-index": "9999",
+            "backdrop-filter": "blur(8px)",
+            "-webkit-backdrop-filter": "blur(8px)",
+            animation: "pillPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both"
+          }}
+        >
+          <span
+            style={{
+              width: "6px",
+              height: "6px",
+              "border-radius": "50%",
+              background: "#df3434",
+              animation: "pulse-dot 1.6s ease-in-out infinite",
+              "flex-shrink": "0"
+            }}
+          />
+          连接已断开，正在尝试重连...
+        </div>
+      </Show>
+
       {/* 核心顶部状态条与刘海已剔除，直接由系统原生填充 */}
       
       {/* 顶部自适应控制栏 */}
@@ -90,13 +152,15 @@ export function MobileLayout(props: MobileLayoutProps) {
         </div>
 
         {/* 顶部中央模型 Badge */}
-        <button 
-          class="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-transparent flex items-center gap-1 active:scale-95 transition-transform max-w-[120px] truncate"
-          onClick={() => setIsModelOpen(true)}
-        >
-          <span>✦</span>
-          <span>{currentModelName()}</span>
-        </button>
+        <Show when={local}>
+          <button 
+            class="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-transparent flex items-center gap-1 active:scale-95 transition-transform max-w-[120px] truncate"
+            onClick={() => setIsModelOpen(true)}
+          >
+            <span>✦</span>
+            <span>{currentModelName()}</span>
+          </button>
+        </Show>
 
         {/* 右侧回溯时钟与清空按钮 */}
         <div class="flex items-center gap-1">
@@ -271,11 +335,13 @@ export function MobileLayout(props: MobileLayoutProps) {
       />
 
       {/* 模型选择底轴抽屉 */}
-      <MobileModelDrawer
-        isOpen={isModelOpen}
-        onClose={() => setIsModelOpen(false)}
-        onManageModels={props.openSettings}
-      />
+      <Show when={local}>
+        <MobileModelDrawer
+          isOpen={isModelOpen}
+          onClose={() => setIsModelOpen(false)}
+          onManageModels={props.openSettings}
+        />
+      </Show>
 
       {/* 回滚二次确认框 */}
       <MobileRollbackDialog

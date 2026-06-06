@@ -197,3 +197,35 @@
 .safe-right {
   padding-right: env(safe-area-inset-right, 0px);
 }
+
+/* 输入框错误样式 */
+.input-error {
+  border-color: rgba(239, 68, 68, 0.45) !important;
+  box-shadow: 0 0 0 3px rgba(229, 72, 77, 0.08) !important;
+}
+
+/* 微振动抖动动画与样式 */
+.shake {
+  animation: micro-shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes micro-shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-4px); }
+  30% { transform: translateX(3px); }
+  45% { transform: translateX(-2px); }
+  60% { transform: translateX(2px); }
+  75% { transform: translateX(-1px); }
+}
+
+/* 悬浮警示小胶囊弹性滑入动画 */
+@keyframes pillPopIn {
+  from { opacity: 0; transform: translate(-50%, -10px) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+/* 心跳呼吸灯动画 */
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(223, 52, 52, 0.4); }
+  50% { transform: scale(0.8); opacity: 0.4; box-shadow: 0 0 0 4px rgba(223, 52, 52, 0.2); }
+}

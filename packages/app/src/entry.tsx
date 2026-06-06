@@ -105,7 +105,7 @@ if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
 const isTauri = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)
 
 const getCurrentUrl = () => {
-  if (isTauri) return "http://localhost:19130"
+  if (isTauri) return "http://127.0.0.1:19130"
   if (location.hostname.includes("opencode.ai")) return "http://localhost:4096"
   if (import.meta.env.DEV)
     return `http://${import.meta.env.VITE_OPENCODE_SERVER_HOST ?? "localhost"}:${import.meta.env.VITE_OPENCODE_SERVER_PORT ?? "4096"}`
